@@ -1,0 +1,156 @@
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import uuid
+
+# --- Configuração Inicial ---
+app = Flask(__name__)
+# Habilita CORS para permitir que o Frontend (index.html) se comunique com o Backend
+CORS(app) 
+
+# Simulação do "Banco de Dados" (Lista de Produtos)
+produtos = [
+    {
+        "id": "a1b2c3d4",
+        "titulo": "Tomate Cereja Orgânico",
+        "descricao": "Tomates cereja doces, perfeitos para saladas.",
+        "preco": 12.50,
+        "categoria": "Legume",
+        "agricultor_id": 1
+    },
+    {
+        "id": "e5f6g7h8",
+        "titulo": "Alface Crespa",
+        "descricao": "Alface fresca, colhida na manhã.",
+        "preco": 4.99,
+        "categoria": "Verdura",
+        "agricultor_id": 2
+    }
+]
+
+# Categorias Permitidas para Validação
+CATEGORIAS_PERMITIDAS = ['Fruta', 'Legume', 'Verdura']
+
+# --- Parte 2: Lógica de Negócio e Validação ---
+
+@app.route('/validar-produto', methods=['POST'])
+def validar_produto():
+    """Endpoint para validar os dados do produto antes de criar/atualizar."""
+    dados_produto = request.get_json()
+    erros = []
+    
+    # 1. Validação do Preço
+    try:
+        preco = float(dados_produto.get('preco', 0))
+        if preco <= 0:
+            erros.append("O preço deve ser maior que zero.")
+    except (ValueError, TypeError):
+        erros.append("O preço deve ser um valor numérico válido.")
+
+    # 2. Validação do Título
+    titulo = dados_produto.get('titulo', '')
+    if len(titulo.strip()) < 5:
+        erros.append("O título do produto deve ter no mínimo 5 caracteres.")
+        
+    # 3. Validação da Categoria
+    categoria = dados_produto.get('categoria', '')
+    if categoria not in CATEGORIAS_PERMITIDAS:
+        erros.append(f"A categoria '{categoria}' não é permitida. Use: {', '.join(CATEGORIAS_PERMITIDAS)}.")
+
+    if erros:
+        return jsonify({"valido": False, "erros": erros}), 400
+    
+    return jsonify({"valido": True, "mensagem": "Produto validado com sucesso!"}), 200
+
+# --- Parte 3: Arquitetura de API e CRUD ---
+
+# Rota: GET /produtos - Lista todos os produtos
+@app.route('/produtos', methods=['GET'])
+def listar_produtos():
+    """Lista todos os produtos (CRUD: Read All)."""
+    return jsonify(produtos), 200
+
+# Rota: POST /produtos - Cria um novo produto
+@app.route('/produtos', methods=['POST'])
+def criar_produto():
+    """Cria um novo produto após validação (CRUD: Create)."""
+    dados_produto = request.get_json()
+    
+    # Simplesmente usamos a lógica de validação aqui
+    validacao_response, status_code = validar_produto()
+    if status_code != 200:
+        return validacao_response, status_code
+        
+    # Adicionar dados obrigatórios e ID
+    novo_produto = {
+        "id": str(uuid.uuid4()), # Gera um ID único
+        "titulo": dados_produto['titulo'],
+        "descricao": dados_produto.get('descricao', ''),
+        "preco": float(dados_produto['preco']),
+        "categoria": dados_produto['categoria'],
+        "agricultor_id": dados_produto.get('agricultor_id', 99) # ID padrão para exemplo
+    }
+    
+    produtos.append(novo_produto)
+    return jsonify(novo_produto), 201 # 201 Created
+
+# Rota: GET /produtos/{id} - Busca um produto específico
+@app.route('/produtos/<string:id>', methods=['GET'])
+def obter_produto(id):
+    """Busca um produto pelo ID (CRUD: Read One)."""
+    produto = next((p for p in produtos if p["id"] == id), None)
+    if produto:
+        return jsonify(produto), 200
+    return jsonify({"mensagem": "Produto não encontrado"}), 404
+
+# Rota: PUT/PATCH /produtos/{id} - Atualiza um produto
+@app.route('/produtos/<string:id>', methods=['PUT', 'PATCH'])
+def atualizar_produto(id):
+    """Atualiza um produto existente (CRUD: Update)."""
+    dados_atualizacao = request.get_json()
+    
+    # Encontra o índice do produto
+    try:
+        produto_index = next(i for i, p in enumerate(produtos) if p["id"] == id)
+    except StopIteration:
+        return jsonify({"mensagem": "Produto não encontrado"}), 404
+
+    produto_atual = produtos[produto_index]
+    
+    # Aplica a validação antes de atualizar (apenas para campos que podem ser alterados)
+    dados_para_validar = {
+        "titulo": dados_atualizacao.get('titulo', produto_atual['titulo']),
+        "preco": dados_atualizacao.get('preco', produto_atual['preco']),
+        "categoria": dados_atualizacao.get('categoria', produto_atual['categoria'])
+    }
+
+    validacao_response, status_code = validar_produto(dados_para_validar)
+    if status_code != 200:
+        return validacao_response, status_code
+    
+    # Atualiza apenas os campos presentes no corpo da requisição
+    produto_atual.update({
+        k: v for k, v in dados_atualizacao.items() 
+        if k in ['titulo', 'descricao', 'preco', 'categoria']
+    })
+    
+    return jsonify(produto_atual), 200
+
+# Rota: DELETE /produtos/{id} - Apaga um produto
+@app.route('/produtos/<string:id>', methods=['DELETE'])
+def deletar_produto(id):
+    """Deleta um produto (CRUD: Delete)."""
+    global produtos
+    tamanho_original = len(produtos)
+    # Filtra a lista, removendo o produto com o ID especificado
+    produtos = [p for p in produtos if p["id"] != id]
+    
+    if len(produtos) < tamanho_original:
+        return jsonify({"mensagem": "Produto deletado com sucesso"}), 204 # 204 No Content
+    return jsonify({"mensagem": "Produto não encontrado"}), 404
+
+# --- Execução da Aplicação ---
+if __name__ == '__main__':
+    # No Replit, você geralmente precisa rodar na porta e host que ele exige.
+    # Por padrão, o Replit expõe na porta 8080 ou semelhante.
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Observação: Mantenha a porta 5000 no Replit, e o host 0.0.0.0

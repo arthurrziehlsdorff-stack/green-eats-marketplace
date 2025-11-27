@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenEats - Listagem de Produtos</title>
+    
+    <link rel="stylesheet" href="style.css"> 
+    
+</head>
+<body>
+
+    <div class="container">
+        <h1>🌱 Listagem de Produtos GreenEats</h1>
+        <div id="produtos-container">
+            <p class="loading">Carregando produtos...</p>
+        </div>
+    </div>
+
+    <script>
+        // O código JavaScript (Parte 4) permanece o mesmo do exemplo anterior.
+        // Copie e cole o bloco <script> inteiro aqui.
+        
+        const API_URL = 'http://127.0.0.1:5000/produtos'; 
+        const produtosContainer = document.getElementById('produtos-container');
+
+        async function carregarProdutos() {
+            produtosContainer.innerHTML = '<p class="loading">Carregando produtos...</p>';
+            
+            try {
+                const resposta = await fetch(API_URL);
+
+                if (!resposta.ok) {
+                    throw new Error(`Erro ao buscar dados: ${resposta.status} ${resposta.statusText}`);
+                }
+
+                const produtos = await resposta.json();
+                
+                renderizarProdutos(produtos);
+
+            } catch (erro) {
+                console.error("Falha na integração com a API:", erro);
+                produtosContainer.innerHTML = `<p class="error">❌ Erro ao carregar os produtos. Verifique se o Backend (app.py) está rodando. Detalhe: ${erro.message}</p>`;
+            }
+        }
+
+        function renderizarProdutos(listaProdutos) {
+            if (listaProdutos.length === 0) {
+                produtosContainer.innerHTML = '<p>Nenhum produto cadastrado no momento.</p>';
+                return;
+            }
+
+            produtosContainer.innerHTML = ''; 
+            
+            listaProdutos.forEach(produto => {
+                const card = document.createElement('div');
+                card.className = 'produto-card';
+                card.innerHTML = `
+                    <div class="produto-info">
+                        <h2>${produto.titulo}</h2>
+                        <p><strong>Categoria:</strong> <span class="badge categoria-${produto.categoria.toLowerCase()}">${produto.categoria}</span></p>
+                        <p>${produto.descricao}</p>
+                    </div>
+                    <div class="produto-preco">
+                        R$ ${produto.preco.toFixed(2).replace('.', ',')}
+                    </div>
+                `;
+                produtosContainer.appendChild(card);
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', carregarProdutos);
+    </script>
+</body>
+</html>
