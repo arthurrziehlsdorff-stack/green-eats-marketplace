@@ -82,11 +82,20 @@ def airtable_record_to_produto(record):
     fields = record.get('fields', {})
     return {
         "id": record.get('id'),
-        "titulo": fields.get('titulo', ''),
-        "descricao": fields.get('descricao', ''),
-        "preco": float(fields.get('preco', 0)),
-        "categoria": fields.get('categoria', ''),
-        "agricultor_id": fields.get('agricultor_id', 99)
+        "titulo": fields.get('Titulo', fields.get('titulo', '')),
+        "descricao": fields.get('Descricao', fields.get('descricao', '')),
+        "preco": float(fields.get('Preco', fields.get('preco', 0)) or 0),
+        "categoria": fields.get('Categoria', fields.get('categoria', '')),
+        "agricultor_id": fields.get('Agricultor_id', fields.get('agricultor_id', 99))
+    }
+
+def produto_to_airtable_fields(dados):
+    return {
+        "Titulo": dados.get('titulo', ''),
+        "Descricao": dados.get('descricao', ''),
+        "Preco": float(dados.get('preco', 0)),
+        "Categoria": dados.get('categoria', ''),
+        "Agricultor_id": dados.get('agricultor_id', 99)
     }
 
 @app.route('/')
@@ -133,14 +142,8 @@ def criar_produto():
     
     if airtable_enabled and airtable_table:
         try:
-            novo_registro = {
-                "titulo": dados_produto['titulo'],
-                "descricao": dados_produto.get('descricao', ''),
-                "preco": float(dados_produto['preco']),
-                "categoria": dados_produto['categoria'],
-                "agricultor_id": dados_produto.get('agricultor_id', 99)
-            }
-            record = airtable_table.create(novo_registro)
+            campos = produto_to_airtable_fields(dados_produto)
+            record = airtable_table.create(campos)
             produto = airtable_record_to_produto(record)
             return jsonify(produto), 201
         except Exception as e:
@@ -187,9 +190,9 @@ def atualizar_produto(id):
             fields_atuais = record_atual.get('fields', {})
             
             dados_para_validar = {
-                "titulo": dados_atualizacao.get('titulo', fields_atuais.get('titulo', '')),
-                "preco": dados_atualizacao.get('preco', fields_atuais.get('preco', 0)),
-                "categoria": dados_atualizacao.get('categoria', fields_atuais.get('categoria', ''))
+                "titulo": dados_atualizacao.get('titulo', fields_atuais.get('Titulo', fields_atuais.get('titulo', ''))),
+                "preco": dados_atualizacao.get('preco', fields_atuais.get('Preco', fields_atuais.get('preco', 0))),
+                "categoria": dados_atualizacao.get('categoria', fields_atuais.get('Categoria', fields_atuais.get('categoria', '')))
             }
 
             erros = validar_dados_produto(dados_para_validar)
@@ -197,11 +200,14 @@ def atualizar_produto(id):
                 return jsonify({"valido": False, "erros": erros}), 400
             
             campos_atualizar = {}
-            for key in ['titulo', 'descricao', 'categoria']:
-                if key in dados_atualizacao:
-                    campos_atualizar[key] = dados_atualizacao[key]
+            if 'titulo' in dados_atualizacao:
+                campos_atualizar['Titulo'] = dados_atualizacao['titulo']
+            if 'descricao' in dados_atualizacao:
+                campos_atualizar['Descricao'] = dados_atualizacao['descricao']
+            if 'categoria' in dados_atualizacao:
+                campos_atualizar['Categoria'] = dados_atualizacao['categoria']
             if 'preco' in dados_atualizacao:
-                campos_atualizar['preco'] = float(dados_atualizacao['preco'])
+                campos_atualizar['Preco'] = float(dados_atualizacao['preco'])
             
             record = airtable_table.update(id, campos_atualizar)
             produto = airtable_record_to_produto(record)
