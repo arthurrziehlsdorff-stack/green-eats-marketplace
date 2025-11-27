@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GreenEats - Gestão de Produtos Orgânicos</title>
+    <title>GreenEats - Gestao de Produtos Organicos</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,16 +34,16 @@
                 </div>
                 <form id="form-produto">
                     <div class="form-group">
-                        <label for="titulo">Título do Produto *</label>
-                        <input type="text" id="titulo" name="titulo" required minlength="5" placeholder="Ex: Tomate Cereja Orgânico">
+                        <label for="titulo">Titulo do Produto *</label>
+                        <input type="text" id="titulo" name="titulo" required minlength="5" placeholder="Ex: Tomate Cereja Organico">
                     </div>
                     <div class="form-group">
-                        <label for="descricao">Descrição</label>
+                        <label for="descricao">Descricao</label>
                         <textarea id="descricao" name="descricao" rows="3" placeholder="Descreva o produto..."></textarea>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="preco">Preço (R$) *</label>
+                            <label for="preco">Preco (R$) *</label>
                             <input type="number" id="preco" name="preco" required min="0.01" step="0.01" placeholder="0,00">
                         </div>
                         <div class="form-group">
@@ -67,7 +67,7 @@
     </main>
 
     <footer class="footer">
-        <p>GreenEats - MVP do Módulo de Gestão de Produtos</p>
+        <p>GreenEats - MVP do Modulo de Gestao de Produtos</p>
         <p>Categorias permitidas: Fruta, Legume, Verdura</p>
     </footer>
 
@@ -83,18 +83,18 @@
             produtosContainer.innerHTML = '<p class="loading">Carregando produtos...</p>';
             
             try {
-                const resposta = await fetch(`${API_BASE_URL}/produtos`);
+                const resposta = await fetch(API_BASE_URL + '/produtos');
 
                 if (!resposta.ok) {
-                    throw new Error(`Erro ao buscar dados: ${resposta.status} ${resposta.statusText}`);
+                    throw new Error('Erro ao buscar dados: ' + resposta.status);
                 }
 
                 const produtos = await resposta.json();
                 renderizarProdutos(produtos);
 
             } catch (erro) {
-                console.error("Falha na integração com a API:", erro);
-                produtosContainer.innerHTML = `<p class="error">Erro ao carregar os produtos. Detalhe: ${erro.message}</p>`;
+                console.error("Falha na integracao com a API:", erro);
+                produtosContainer.innerHTML = '<p class="error">Erro ao carregar os produtos. Detalhe: ' + erro.message + '</p>';
             }
         }
 
@@ -106,30 +106,31 @@
 
             produtosContainer.innerHTML = '';
             
-            listaProdutos.forEach(produto => {
+            listaProdutos.forEach(function(produto) {
                 const card = document.createElement('div');
                 card.className = 'produto-card';
-                card.innerHTML = `
-                    <div class="produto-info">
-                        <h3>${produto.titulo}</h3>
-                        <p><strong>Categoria:</strong> <span class="badge categoria-${produto.categoria.toLowerCase()}">${produto.categoria}</span></p>
-                        <p class="descricao">${produto.descricao || 'Sem descrição'}</p>
-                    </div>
-                    <div class="produto-acoes">
-                        <div class="produto-preco">
-                            R$ ${produto.preco.toFixed(2).replace('.', ',')}
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-small btn-edit" onclick="editarProduto('${produto.id}')">Editar</button>
-                            <button class="btn btn-small btn-delete" onclick="deletarProduto('${produto.id}')">Excluir</button>
-                        </div>
-                    </div>
-                `;
+                
+                const precoFormatado = produto.preco.toFixed(2).replace('.', ',');
+                const categoriaLower = produto.categoria.toLowerCase();
+                
+                card.innerHTML = '<div class="produto-info">' +
+                    '<h3>' + produto.titulo + '</h3>' +
+                    '<p><strong>Categoria:</strong> <span class="badge categoria-' + categoriaLower + '">' + produto.categoria + '</span></p>' +
+                    '<p class="descricao">' + (produto.descricao || 'Sem descricao') + '</p>' +
+                    '</div>' +
+                    '<div class="produto-acoes">' +
+                    '<div class="produto-preco">R$ ' + precoFormatado + '</div>' +
+                    '<div class="btn-group">' +
+                    '<button class="btn btn-small btn-edit" onclick="editarProduto(\'' + produto.id + '\')">Editar</button>' +
+                    '<button class="btn btn-small btn-delete" onclick="deletarProduto(\'' + produto.id + '\')">Excluir</button>' +
+                    '</div></div>';
+                    
                 produtosContainer.appendChild(card);
             });
         }
 
-        function abrirModal(titulo = 'Cadastrar Novo Produto') {
+        function abrirModal(titulo) {
+            titulo = titulo || 'Cadastrar Novo Produto';
             document.getElementById('modal-titulo').textContent = titulo;
             modal.classList.remove('hidden');
             errosValidacao.classList.add('hidden');
@@ -145,8 +146,8 @@
 
         async function editarProduto(id) {
             try {
-                const resposta = await fetch(`${API_BASE_URL}/produtos/${id}`);
-                if (!resposta.ok) throw new Error('Produto não encontrado');
+                const resposta = await fetch(API_BASE_URL + '/produtos/' + id);
+                if (!resposta.ok) throw new Error('Produto nao encontrado');
                 
                 const produto = await resposta.json();
                 
@@ -166,7 +167,7 @@
             if (!confirm('Tem certeza que deseja excluir este produto?')) return;
             
             try {
-                const resposta = await fetch(`${API_BASE_URL}/produtos/${id}`, {
+                const resposta = await fetch(API_BASE_URL + '/produtos/' + id, {
                     method: 'DELETE'
                 });
                 
@@ -191,7 +192,7 @@
             };
 
             try {
-                const validacao = await fetch(`${API_BASE_URL}/validar-produto`, {
+                const validacao = await fetch(API_BASE_URL + '/validar-produto', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(dados)
@@ -200,16 +201,21 @@
                 const resultadoValidacao = await validacao.json();
 
                 if (!resultadoValidacao.valido) {
-                    errosValidacao.innerHTML = resultadoValidacao.erros.map(e => `<p>${e}</p>`).join('');
+                    errosValidacao.innerHTML = resultadoValidacao.erros.map(function(e) { return '<p>' + e + '</p>'; }).join('');
                     errosValidacao.classList.remove('hidden');
                     return;
                 }
 
-                const url = produtoEditandoId 
-                    ? `${API_BASE_URL}/produtos/${produtoEditandoId}`
-                    : `${API_BASE_URL}/produtos`;
+                var url;
+                var method;
                 
-                const method = produtoEditandoId ? 'PUT' : 'POST';
+                if (produtoEditandoId) {
+                    url = API_BASE_URL + '/produtos/' + produtoEditandoId;
+                    method = 'PUT';
+                } else {
+                    url = API_BASE_URL + '/produtos';
+                    method = 'POST';
+                }
 
                 const resposta = await fetch(url, {
                     method: method,
@@ -222,20 +228,24 @@
                     carregarProdutos();
                 } else {
                     const erro = await resposta.json();
-                    throw new Error(erro.erros?.join(', ') || 'Erro ao salvar produto');
+                    var mensagemErro = 'Erro ao salvar produto';
+                    if (erro.erros && erro.erros.length > 0) {
+                        mensagemErro = erro.erros.join(', ');
+                    }
+                    throw new Error(mensagemErro);
                 }
             } catch (erro) {
-                errosValidacao.innerHTML = `<p>${erro.message}</p>`;
+                errosValidacao.innerHTML = '<p>' + erro.message + '</p>';
                 errosValidacao.classList.remove('hidden');
             }
         }
 
-        document.getElementById('btn-novo-produto').addEventListener('click', () => abrirModal());
+        document.getElementById('btn-novo-produto').addEventListener('click', function() { abrirModal(); });
         document.getElementById('btn-fechar-modal').addEventListener('click', fecharModal);
         document.getElementById('btn-cancelar').addEventListener('click', fecharModal);
         form.addEventListener('submit', salvarProduto);
 
-        modal.addEventListener('click', (e) => {
+        modal.addEventListener('click', function(e) {
             if (e.target === modal) fecharModal();
         });
 
