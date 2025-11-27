@@ -94,8 +94,7 @@ def produto_to_airtable_fields(dados):
         "Titulo": dados.get('titulo', ''),
         "Descricao": dados.get('descricao', ''),
         "Preco": float(dados.get('preco', 0)),
-        "Categoria": dados.get('categoria', ''),
-        "Agricultor_id": dados.get('agricultor_id', 99)
+        "Categoria": dados.get('categoria', '')
     }
 
 @app.route('/')
