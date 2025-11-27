@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenEats - Gestão de Produtos Orgânicos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>GreenEats</h1>
+            <p>Conectando produtores locais a consumidores conscientes</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="section">
+            <div class="section-header">
+                <h2>Listagem de Produtos</h2>
+                <button id="btn-novo-produto" class="btn btn-primary">+ Novo Produto</button>
+            </div>
+            
+            <div id="produtos-container">
+                <p class="loading">Carregando produtos...</p>
+            </div>
+        </section>
+
+        <div id="modal-produto" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-titulo">Cadastrar Novo Produto</h3>
+                    <button id="btn-fechar-modal" class="btn-fechar">&times;</button>
+                </div>
+                <form id="form-produto">
+                    <div class="form-group">
+                        <label for="titulo">Título do Produto *</label>
+                        <input type="text" id="titulo" name="titulo" required minlength="5" placeholder="Ex: Tomate Cereja Orgânico">
+                    </div>
+                    <div class="form-group">
+                        <label for="descricao">Descrição</label>
+                        <textarea id="descricao" name="descricao" rows="3" placeholder="Descreva o produto..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="preco">Preço (R$) *</label>
+                            <input type="number" id="preco" name="preco" required min="0.01" step="0.01" placeholder="0,00">
+                        </div>
+                        <div class="form-group">
+                            <label for="categoria">Categoria *</label>
+                            <select id="categoria" name="categoria" required>
+                                <option value="">Selecione...</option>
+                                <option value="Fruta">Fruta</option>
+                                <option value="Legume">Legume</option>
+                                <option value="Verdura">Verdura</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="erros-validacao" class="erros-validacao hidden"></div>
+                    <div class="form-actions">
+                        <button type="button" id="btn-cancelar" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar Produto</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>GreenEats - MVP do Módulo de Gestão de Produtos</p>
+        <p>Categorias permitidas: Fruta, Legume, Verdura</p>
+    </footer>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        const produtosContainer = document.getElementById('produtos-container');
+        const modal = document.getElementById('modal-produto');
+        const form = document.getElementById('form-produto');
+        const errosValidacao = document.getElementById('erros-validacao');
+        let produtoEditandoId = null;
+
+        async function carregarProdutos() {
+            produtosContainer.innerHTML = '<p class="loading">Carregando produtos...</p>';
+            
+            try {
+                const resposta = await fetch(`${API_BASE_URL}/produtos`);
+
+                if (!resposta.ok) {
+                    throw new Error(`Erro ao buscar dados: ${resposta.status} ${resposta.statusText}`);
+                }
+
+                const produtos = await resposta.json();
+                renderizarProdutos(produtos);
+
+            } catch (erro) {
+                console.error("Falha na integração com a API:", erro);
+                produtosContainer.innerHTML = `<p class="error">Erro ao carregar os produtos. Detalhe: ${erro.message}</p>`;
+            }
+        }
+
+        function renderizarProdutos(listaProdutos) {
+            if (listaProdutos.length === 0) {
+                produtosContainer.innerHTML = '<p class="empty-state">Nenhum produto cadastrado no momento. Clique em "+ Novo Produto" para adicionar.</p>';
+                return;
+            }
+
+            produtosContainer.innerHTML = '';
+            
+            listaProdutos.forEach(produto => {
+                const card = document.createElement('div');
+                card.className = 'produto-card';
+                card.innerHTML = `
+                    <div class="produto-info">
+                        <h3>${produto.titulo}</h3>
+                        <p><strong>Categoria:</strong> <span class="badge categoria-${produto.categoria.toLowerCase()}">${produto.categoria}</span></p>
+                        <p class="descricao">${produto.descricao || 'Sem descrição'}</p>
+                    </div>
+                    <div class="produto-acoes">
+                        <div class="produto-preco">
+                            R$ ${produto.preco.toFixed(2).replace('.', ',')}
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-small btn-edit" onclick="editarProduto('${produto.id}')">Editar</button>
+                            <button class="btn btn-small btn-delete" onclick="deletarProduto('${produto.id}')">Excluir</button>
+                        </div>
+                    </div>
+                `;
+                produtosContainer.appendChild(card);
+            });
+        }
+
+        function abrirModal(titulo = 'Cadastrar Novo Produto') {
+            document.getElementById('modal-titulo').textContent = titulo;
+            modal.classList.remove('hidden');
+            errosValidacao.classList.add('hidden');
+            errosValidacao.innerHTML = '';
+        }
+
+        function fecharModal() {
+            modal.classList.add('hidden');
+            form.reset();
+            produtoEditandoId = null;
+            errosValidacao.classList.add('hidden');
+        }
+
+        async function editarProduto(id) {
+            try {
+                const resposta = await fetch(`${API_BASE_URL}/produtos/${id}`);
+                if (!resposta.ok) throw new Error('Produto não encontrado');
+                
+                const produto = await resposta.json();
+                
+                document.getElementById('titulo').value = produto.titulo;
+                document.getElementById('descricao').value = produto.descricao || '';
+                document.getElementById('preco').value = produto.preco;
+                document.getElementById('categoria').value = produto.categoria;
+                
+                produtoEditandoId = id;
+                abrirModal('Editar Produto');
+            } catch (erro) {
+                alert('Erro ao carregar produto: ' + erro.message);
+            }
+        }
+
+        async function deletarProduto(id) {
+            if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+            
+            try {
+                const resposta = await fetch(`${API_BASE_URL}/produtos/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (resposta.status === 204 || resposta.ok) {
+                    carregarProdutos();
+                } else {
+                    throw new Error('Erro ao deletar produto');
+                }
+            } catch (erro) {
+                alert('Erro ao excluir produto: ' + erro.message);
+            }
+        }
+
+        async function salvarProduto(event) {
+            event.preventDefault();
+            
+            const dados = {
+                titulo: document.getElementById('titulo').value.trim(),
+                descricao: document.getElementById('descricao').value.trim(),
+                preco: parseFloat(document.getElementById('preco').value),
+                categoria: document.getElementById('categoria').value
+            };
+
+            try {
+                const validacao = await fetch(`${API_BASE_URL}/validar-produto`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+
+                const resultadoValidacao = await validacao.json();
+
+                if (!resultadoValidacao.valido) {
+                    errosValidacao.innerHTML = resultadoValidacao.erros.map(e => `<p>${e}</p>`).join('');
+                    errosValidacao.classList.remove('hidden');
+                    return;
+                }
+
+                const url = produtoEditandoId 
+                    ? `${API_BASE_URL}/produtos/${produtoEditandoId}`
+                    : `${API_BASE_URL}/produtos`;
+                
+                const method = produtoEditandoId ? 'PUT' : 'POST';
+
+                const resposta = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+
+                if (resposta.ok || resposta.status === 201) {
+                    fecharModal();
+                    carregarProdutos();
+                } else {
+                    const erro = await resposta.json();
+                    throw new Error(erro.erros?.join(', ') || 'Erro ao salvar produto');
+                }
+            } catch (erro) {
+                errosValidacao.innerHTML = `<p>${erro.message}</p>`;
+                errosValidacao.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('btn-novo-produto').addEventListener('click', () => abrirModal());
+        document.getElementById('btn-fechar-modal').addEventListener('click', fecharModal);
+        document.getElementById('btn-cancelar').addEventListener('click', fecharModal);
+        form.addEventListener('submit', salvarProduto);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) fecharModal();
+        });
+
+        document.addEventListener('DOMContentLoaded', carregarProdutos);
+    </script>
+</body>
+</html>
