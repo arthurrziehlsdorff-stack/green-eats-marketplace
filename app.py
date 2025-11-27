@@ -41,8 +41,20 @@ produtos_local = [
 
 def init_airtable():
     global airtable_table, airtable_enabled
-    airtable_enabled = False
-    print("Usando armazenamento local. Para ativar Airtable, crie os campos: Titulo, Descricao, Preco, Categoria")
+    if AIRTABLE_API_KEY and AIRTABLE_BASE_ID:
+        try:
+            from pyairtable import Api
+            api = Api(AIRTABLE_API_KEY)
+            airtable_table = api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+            airtable_table.all()
+            airtable_enabled = True
+            print("Airtable conectado com sucesso!")
+        except Exception as e:
+            print("Airtable nao disponivel, usando armazenamento local. Erro: " + str(e))
+            airtable_enabled = False
+    else:
+        print("Credenciais Airtable nao configuradas, usando armazenamento local.")
+        airtable_enabled = False
 
 CATEGORIAS_PERMITIDAS = ['Fruta', 'Legume', 'Verdura']
 
