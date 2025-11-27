@@ -1,73 +1,70 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-import uuid
+from pyairtable import Api
 import os
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
-produtos = [
-    {
-        "id": "a1b2c3d4",
-        "titulo": "Tomate Cereja Orgânico",
-        "descricao": "Tomates cereja doces, perfeitos para saladas.",
-        "preco": 12.50,
-        "categoria": "Legume",
-        "agricultor_id": 1
-    },
-    {
-        "id": "e5f6g7h8",
-        "titulo": "Alface Crespa",
-        "descricao": "Alface fresca, colhida na manhã.",
-        "preco": 4.99,
-        "categoria": "Verdura",
-        "agricultor_id": 2
-    },
-    {
-        "id": "i9j0k1l2",
-        "titulo": "Banana Prata Orgânica",
-        "descricao": "Bananas maduras e doces, cultivadas sem agrotóxicos.",
-        "preco": 8.90,
-        "categoria": "Fruta",
-        "agricultor_id": 1
-    }
-]
+AIRTABLE_API_KEY = os.environ.get('AIRTABLE_API_KEY')
+AIRTABLE_BASE_ID = os.environ.get('AIRTABLE_BASE_ID')
+AIRTABLE_TABLE_NAME = os.environ.get('AIRTABLE_TABLE_NAME', 'Produtos')
+
+api = None
+table = None
+
+def get_airtable_table():
+    global api, table
+    if table is None:
+        if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
+            raise Exception("Credenciais do Airtable nao configuradas. Configure AIRTABLE_API_KEY e AIRTABLE_BASE_ID.")
+        api = Api(AIRTABLE_API_KEY)
+        table = api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+    return table
 
 CATEGORIAS_PERMITIDAS = ['Fruta', 'Legume', 'Verdura']
 
 def validar_dados_produto(dados_produto):
-    """Função auxiliar para validar os dados do produto."""
     erros = []
     
     try:
         preco = float(dados_produto.get('preco', 0))
         if preco <= 0:
-            erros.append("O preço deve ser maior que zero.")
+            erros.append("O preco deve ser maior que zero.")
     except (ValueError, TypeError):
-        erros.append("O preço deve ser um valor numérico válido.")
+        erros.append("O preco deve ser um valor numerico valido.")
 
     titulo = dados_produto.get('titulo', '')
     if len(str(titulo).strip()) < 5:
-        erros.append("O título do produto deve ter no mínimo 5 caracteres.")
+        erros.append("O titulo do produto deve ter no minimo 5 caracteres.")
         
     categoria = dados_produto.get('categoria', '')
     if categoria not in CATEGORIAS_PERMITIDAS:
-        erros.append(f"A categoria '{categoria}' não é permitida. Use: {', '.join(CATEGORIAS_PERMITIDAS)}.")
+        erros.append("A categoria '" + str(categoria) + "' nao e permitida. Use: " + ', '.join(CATEGORIAS_PERMITIDAS) + ".")
     
     return erros
 
+def airtable_record_to_produto(record):
+    fields = record.get('fields', {})
+    return {
+        "id": record.get('id'),
+        "titulo": fields.get('titulo', ''),
+        "descricao": fields.get('descricao', ''),
+        "preco": float(fields.get('preco', 0)),
+        "categoria": fields.get('categoria', ''),
+        "agricultor_id": fields.get('agricultor_id', 99)
+    }
+
 @app.route('/')
 def index():
-    """Serve a página principal."""
     return send_from_directory('static', 'index.html')
 
 @app.route('/validar-produto', methods=['POST'])
 def validar_produto():
-    """Endpoint para validar os dados do produto antes de criar/atualizar."""
     dados_produto = request.get_json()
     
     if not dados_produto:
-        return jsonify({"valido": False, "erros": ["Dados do produto não fornecidos."]}), 400
+        return jsonify({"valido": False, "erros": ["Dados do produto nao fornecidos."]}), 400
     
     erros = validar_dados_produto(dados_produto)
 
@@ -78,89 +75,99 @@ def validar_produto():
 
 @app.route('/produtos', methods=['GET'])
 def listar_produtos():
-    """Lista todos os produtos (CRUD: Read All)."""
-    return jsonify(produtos), 200
+    try:
+        airtable = get_airtable_table()
+        records = airtable.all()
+        produtos = [airtable_record_to_produto(r) for r in records]
+        return jsonify(produtos), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 @app.route('/produtos', methods=['POST'])
 def criar_produto():
-    """Cria um novo produto após validação (CRUD: Create)."""
     dados_produto = request.get_json()
     
     if not dados_produto:
-        return jsonify({"valido": False, "erros": ["Dados do produto não fornecidos."]}), 400
+        return jsonify({"valido": False, "erros": ["Dados do produto nao fornecidos."]}), 400
     
     erros = validar_dados_produto(dados_produto)
     if erros:
         return jsonify({"valido": False, "erros": erros}), 400
-        
-    novo_produto = {
-        "id": str(uuid.uuid4()),
-        "titulo": dados_produto['titulo'],
-        "descricao": dados_produto.get('descricao', ''),
-        "preco": float(dados_produto['preco']),
-        "categoria": dados_produto['categoria'],
-        "agricultor_id": dados_produto.get('agricultor_id', 99)
-    }
     
-    produtos.append(novo_produto)
-    return jsonify(novo_produto), 201
+    try:
+        airtable = get_airtable_table()
+        
+        novo_registro = {
+            "titulo": dados_produto['titulo'],
+            "descricao": dados_produto.get('descricao', ''),
+            "preco": float(dados_produto['preco']),
+            "categoria": dados_produto['categoria'],
+            "agricultor_id": dados_produto.get('agricultor_id', 99)
+        }
+        
+        record = airtable.create(novo_registro)
+        produto = airtable_record_to_produto(record)
+        return jsonify(produto), 201
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 @app.route('/produtos/<string:id>', methods=['GET'])
 def obter_produto(id):
-    """Busca um produto pelo ID (CRUD: Read One)."""
-    produto = next((p for p in produtos if p["id"] == id), None)
-    if produto:
+    try:
+        airtable = get_airtable_table()
+        record = airtable.get(id)
+        produto = airtable_record_to_produto(record)
         return jsonify(produto), 200
-    return jsonify({"mensagem": "Produto não encontrado"}), 404
+    except Exception as e:
+        return jsonify({"mensagem": "Produto nao encontrado"}), 404
 
 @app.route('/produtos/<string:id>', methods=['PUT', 'PATCH'])
 def atualizar_produto(id):
-    """Atualiza um produto existente (CRUD: Update)."""
     dados_atualizacao = request.get_json()
     
     if not dados_atualizacao:
-        return jsonify({"valido": False, "erros": ["Dados de atualização não fornecidos."]}), 400
+        return jsonify({"valido": False, "erros": ["Dados de atualizacao nao fornecidos."]}), 400
     
     try:
-        produto_index = next(i for i, p in enumerate(produtos) if p["id"] == id)
-    except StopIteration:
-        return jsonify({"mensagem": "Produto não encontrado"}), 404
+        airtable = get_airtable_table()
+        
+        record_atual = airtable.get(id)
+        fields_atuais = record_atual.get('fields', {})
+        
+        dados_para_validar = {
+            "titulo": dados_atualizacao.get('titulo', fields_atuais.get('titulo', '')),
+            "preco": dados_atualizacao.get('preco', fields_atuais.get('preco', 0)),
+            "categoria": dados_atualizacao.get('categoria', fields_atuais.get('categoria', ''))
+        }
 
-    produto_atual = produtos[produto_index]
-    
-    dados_para_validar = {
-        "titulo": dados_atualizacao.get('titulo', produto_atual['titulo']),
-        "preco": dados_atualizacao.get('preco', produto_atual['preco']),
-        "categoria": dados_atualizacao.get('categoria', produto_atual['categoria'])
-    }
-
-    erros = validar_dados_produto(dados_para_validar)
-    if erros:
-        return jsonify({"valido": False, "erros": erros}), 400
-    
-    for key in ['titulo', 'descricao', 'preco', 'categoria']:
-        if key in dados_atualizacao:
-            if key == 'preco':
-                produto_atual[key] = float(dados_atualizacao[key])
-            else:
-                produto_atual[key] = dados_atualizacao[key]
-    
-    return jsonify(produto_atual), 200
+        erros = validar_dados_produto(dados_para_validar)
+        if erros:
+            return jsonify({"valido": False, "erros": erros}), 400
+        
+        campos_atualizar = {}
+        for key in ['titulo', 'descricao', 'categoria']:
+            if key in dados_atualizacao:
+                campos_atualizar[key] = dados_atualizacao[key]
+        if 'preco' in dados_atualizacao:
+            campos_atualizar['preco'] = float(dados_atualizacao['preco'])
+        
+        record = airtable.update(id, campos_atualizar)
+        produto = airtable_record_to_produto(record)
+        return jsonify(produto), 200
+    except Exception as e:
+        return jsonify({"mensagem": "Produto nao encontrado"}), 404
 
 @app.route('/produtos/<string:id>', methods=['DELETE'])
 def deletar_produto(id):
-    """Deleta um produto (CRUD: Delete)."""
-    global produtos
-    tamanho_original = len(produtos)
-    produtos = [p for p in produtos if p["id"] != id]
-    
-    if len(produtos) < tamanho_original:
+    try:
+        airtable = get_airtable_table()
+        airtable.delete(id)
         return '', 204
-    return jsonify({"mensagem": "Produto não encontrado"}), 404
+    except Exception as e:
+        return jsonify({"mensagem": "Produto nao encontrado"}), 404
 
 @app.route('/categorias', methods=['GET'])
 def listar_categorias():
-    """Lista todas as categorias permitidas."""
     return jsonify(CATEGORIAS_PERMITIDAS), 200
 
 if __name__ == '__main__':
